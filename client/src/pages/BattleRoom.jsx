@@ -1,43 +1,89 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import bgBattle from "../assets/bg-battle.png"
+import io from 'socket.io-client';
+import bgBattle from "../assets/bg-battle.png";
+
+const socket = io("http://localhost:3000");
 
 export default function BattleRoom() {
     const location = useLocation();
-    const { card } = location.state || {}; // Get the passed card data
-    const [userHealth, setUserHealth] = useState(100);
-    const [opponentHealth, setOpponentHealth] = useState(100);
+    const { card } = location.state || {};
+    const [userPoints, setUserPoints] = useState(0);
+    const [opponentPoints, setOpponentPoints] = useState(0);
     const [message, setMessage] = useState('');
+    const [isGameStarted, setIsGameStarted] = useState(false);
+    const [isGameOver, setIsGameOver] = useState(false);
 
-    const handleAttack = () => {
-        const damage = Math.floor(Math.random() * 20) + 1; // Random damage between 1 and 20
-        setOpponentHealth((prev) => Math.max(prev - damage, 0)); // Reduce opponent's health
-        setMessage(`You dealt ${damage} damage to ${card.name}!`);
+    const choices = ["rock", "paper", "scissors"];
+
+    useEffect(() => {
+        if (card) {
+            socket.emit("joinGame", card.name);
+        }
+
+        socket.on("welcomingUser", (data) => {
+            setMessage(data.message);
+        });
+
+        socket.on("startGame", () => {
+            setIsGameStarted(true);
+            setMessage("The game has started! Make your move.");
+        });
+
+        socket.on("gameResult", (data) => {
+            const user = data.users.find((u) => u.username === card.name);
+            const opponent = data.users.find((u) => u.username !== card.name);
+
+            setUserPoints(user?.points || 0);
+            setOpponentPoints(opponent?.points || 0);
+            setMessage(data.message);
+
+            if (user.points >= 10 || opponent.points >= 10) {
+                setIsGameOver(true);
+                setIsGameStarted(false);
+            }
+        });
+
+        socket.on("gameOver", (data) => {
+            setMessage(data.message);
+            setIsGameOver(true);
+            setIsGameStarted(false);
+        });
+
+        socket.on("resetGame", (data) => {
+            setUserPoints(0);
+            setOpponentPoints(0);
+            setMessage(data.message);
+            setIsGameStarted(false);
+            setIsGameOver(false);
+        });
+
+        return () => {
+            socket.disconnect();
+        };
+    }, [card]);
+
+    const handleRPSChoice = (userChoice) => {
+        if (isGameStarted && !isGameOver) {
+            socket.emit("makeChoice", { userChoice, username: card.name });
+        }
     };
 
-    const handleHeal = () => {
-        const heal = Math.floor(Math.random() * 15) + 1; // Random heal between 1 and 15
-        setUserHealth((prev) => Math.min(prev + heal, 100)); // Heal the user
-        setMessage(`You healed for ${heal} health!`);
-    };
-
-    // Inline style for the background
     const battleRoomStyle = {
-        display: 'flex', // Use flexbox for centering
-        flexDirection: 'column', // Arrange items vertically
-        alignItems: 'center', // Center items horizontally
-        justifyContent: 'center', // Center items vertically
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
         textAlign: 'center',
         padding: '20px',
-        backgroundImage: `url(${bgBattle})`, // Background image path
-        backgroundSize: 'cover', // Cover the entire area
-        backgroundPosition: 'center', // Center the image
-        width: '100vw', // Full viewport width
-        height: '100vh', // Full viewport height
-        color: 'white', // Text color
-        overflow: 'hidden', // Prevent overflow
+        backgroundImage: url(${bgBattle}),
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        width: '100vw',
+        height: '100vh',
+        color: 'white',
+        overflow: 'hidden',
     };
-    
 
     return (
         <div style={battleRoomStyle}>
@@ -48,20 +94,28 @@ export default function BattleRoom() {
                     <h3>{card.name}</h3>
                 </div>
             )}
-            <div className="health-status">
-                <p>Your Health: {userHealth}</p>
-                <p>Opponent Health: {opponentHealth}</p>
+            <div className="score-status">
+                <p>Your Points: {userPoints}</p>
+                <p>Opponent Points: {opponentPoints}</p>
             </div>
             <div className="actions">
-                <button onClick={handleAttack} className="attack-button">
-                    Attack
-                </button>
-                <button onClick={handleHeal} className="heal-button">
-                    Heal
-                </button>
+                {choices.map((choice) => (
+                    <button
+                        key={choice}
+                        onClick={() => handleRPSChoice(choice)}
+                        className="rps-button text-black"
+                        disabled={!isGameStarted || isGameOver}
+                    >
+                        {choice.charAt(0).toUpperCase() + choice.slice(1)}
+                    </button>
+                ))}
             </div>
             {message && <p className="message">{message}</p>}
-            {opponentHealth <= 0 && <p className="result">You win!</p>}
+            {isGameOver && (
+                <p className="result">
+                    {userPoints >= 10 ? "You win the game!" : "You lose the game!"}
+                </p>
+            )}
         </div>
     );
 }
