@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 
 export default function GetCard() {
     const [cards, setCards] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchCards = async () => {
@@ -21,6 +23,25 @@ export default function GetCard() {
 
         fetchCards();
     }, []);
+
+    const handleCardClick = (card) => {
+        Swal.fire({
+            title: "Konfirmasi Pilihan Kartu",
+            text: `Apakah Anda ingin memilih kartu ${card.name}?`,
+            imageUrl: card.images?.small,
+            imageWidth: 200,
+            imageHeight: 280,
+            imageAlt: card.name,
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Pilih Kartu',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Navigasi ke halaman BattleRoom dengan card yang dipilih
+                navigate('/battle-room', { state: { card } });
+            }
+        });
+    };
 
     if (loading) {
         return <p>Loading...</p>;
@@ -44,10 +65,9 @@ export default function GetCard() {
                 <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
                     {cards.slice(0, 10).map((card) => (
                         <li key={card.id}>
-                            <Link 
-                                to="/battle-room" 
-                                state={{ card }} // Pass the selected card to BattleRoom
-                                className="group block overflow-hidden"
+                            <div
+                                onClick={() => handleCardClick(card)}
+                                className="group block overflow-hidden cursor-pointer"
                             >
                                 <img
                                     src={card.images?.small} // Adjust the image source as needed
@@ -59,7 +79,7 @@ export default function GetCard() {
                                         {card.name}
                                     </h3>
                                 </div>
-                            </Link>
+                            </div>
                         </li>
                     ))}
                 </ul>
