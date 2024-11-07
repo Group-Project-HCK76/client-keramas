@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import io from 'socket.io-client';
+import { useLocation, useNavigate } from 'react-router-dom';
+import socket from '../socket';
+import Swal from 'sweetalert2';
 import bgBattle from "../assets/bg-battle.png";
-
-const socket = io("http://localhost:3000");
 
 export default function BattleRoom() {
     const location = useLocation();
+    const navigate = useNavigate();
     const { card } = location.state || {};
+
     const [userPoints, setUserPoints] = useState(0);
     const [opponentPoints, setOpponentPoints] = useState(0);
     const [message, setMessage] = useState('');
+    const [userChoice, setUserChoice] = useState('');
     const [isGameStarted, setIsGameStarted] = useState(false);
     const [isGameOver, setIsGameOver] = useState(false);
 
@@ -18,19 +20,49 @@ export default function BattleRoom() {
 
     useEffect(() => {
         if (card) {
+            socket.connect(); // Ensure socket is connected when entering the room
             socket.emit("joinGame", card.name);
         }
+
+        // Show waiting alert when server emits 'waiting'
+        socket.on("waiting", () => {
+            Swal.fire({
+                title: "Waiting for opponent...",
+                allowOutsideClick: false,
+                showConfirmButton: false,
+            });
+        });
 
         socket.on("welcomingUser", (data) => {
             setMessage(data.message);
         });
 
         socket.on("startGame", () => {
-            setIsGameStarted(true);
-            setMessage("The game has started! Make your move.");
+            Swal.close();
+            let countdown = 3;
+            setIsGameStarted(false);
+
+            const countdownInterval = setInterval(() => {
+                if (countdown === 0) {
+                    clearInterval(countdownInterval);
+                    Swal.close();
+                    setIsGameStarted(true);
+                    setMessage("The game has started! Make your move.");
+                } else {
+                    Swal.fire({
+                        title: `Game starting in ${countdown}`,
+                        text: "Get ready!",
+                        timer: 1000,
+                        showConfirmButton: false,
+                        allowOutsideClick: false,
+                    });
+                    countdown--;
+                }
+            }, 1000);
         });
 
         socket.on("gameResult", (data) => {
+            Swal.close();
             const user = data.users.find((u) => u.username === card.name);
             const opponent = data.users.find((u) => u.username !== card.name);
 
@@ -38,16 +70,27 @@ export default function BattleRoom() {
             setOpponentPoints(opponent?.points || 0);
             setMessage(data.message);
 
-            if (user.points >= 10 || opponent.points >= 10) {
-                setIsGameOver(true);
-                setIsGameStarted(false);
-            }
+            Swal.fire({
+                title: data.message,
+                text: `Score: You ${user.points} - Opponent ${opponent.points}`,
+                timer: 2500,
+                showConfirmButton: false,
+            });
         });
 
         socket.on("gameOver", (data) => {
             setMessage(data.message);
             setIsGameOver(true);
             setIsGameStarted(false);
+
+            Swal.fire({
+                title: data.message,
+                icon: "info",
+                confirmButtonText: "OK",
+            }).then(() => {
+                socket.disconnect();  // Disconnect the socket
+                navigate("/pickCard");  // Redirect to /pickCard
+            });
         });
 
         socket.on("resetGame", (data) => {
@@ -56,16 +99,36 @@ export default function BattleRoom() {
             setMessage(data.message);
             setIsGameStarted(false);
             setIsGameOver(false);
+            Swal.fire({
+                title: "Game Reset!",
+                text: "Get ready for a new game!",
+                timer: 1700,
+                showConfirmButton: false,
+            });
         });
 
         return () => {
+            // Ensure socket disconnects when component unmounts
             socket.disconnect();
+            socket.off("waiting");
+            socket.off("welcomingUser");
+            socket.off("startGame");
+            socket.off("gameResult");
+            socket.off("gameOver");
+            socket.off("resetGame");
         };
     }, [card]);
 
     const handleRPSChoice = (userChoice) => {
         if (isGameStarted && !isGameOver) {
+            setUserChoice(userChoice);
             socket.emit("makeChoice", { userChoice, username: card.name });
+
+            Swal.fire({
+                title: "Waiting for opponent's choice...",
+                allowOutsideClick: false,
+                showConfirmButton: false,
+            });
         }
     };
 
@@ -76,7 +139,7 @@ export default function BattleRoom() {
         justifyContent: 'center',
         textAlign: 'center',
         padding: '20px',
-        backgroundImage: url(${bgBattle}),
+        backgroundImage: `url(${bgBattle})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         width: '100vw',
@@ -87,32 +150,36 @@ export default function BattleRoom() {
 
     return (
         <div style={battleRoomStyle}>
-            <h2 className="text-2xl font-bold">Battle Room</h2>
+            <h2 className="text-2xl text-black font-bold">Battle Room</h2>
             {card && (
-                <div className="card-info">
+                <div className="card-info text-black">
                     <img src={card.images?.small} alt={card.name} />
                     <h3>{card.name}</h3>
                 </div>
             )}
-            <div className="score-status">
+            <div className="score-status text-black">
                 <p>Your Points: {userPoints}</p>
                 <p>Opponent Points: {opponentPoints}</p>
             </div>
-            <div className="actions">
-                {choices.map((choice) => (
-                    <button
-                        key={choice}
-                        onClick={() => handleRPSChoice(choice)}
-                        className="rps-button text-black"
-                        disabled={!isGameStarted || isGameOver}
-                    >
-                        {choice.charAt(0).toUpperCase() + choice.slice(1)}
-                    </button>
-                ))}
-            </div>
-            {message && <p className="message">{message}</p>}
+            {isGameStarted ? (
+                <div className="actions">
+                    {choices.map((choice) => (
+                        <button
+                            key={choice}
+                            onClick={() => handleRPSChoice(choice)}
+                            className="rps-button text-white"
+                        >
+                            {choice.charAt(0).toUpperCase() + choice.slice(1)}
+                        </button>
+                    ))}
+                </div>
+            ) : (
+                <p className="text-black">Waiting for opponent to join...</p>
+            )}
+            <p className="text-black">Your Choice: {userChoice}</p>
+            {message && <p className="message text-black">{message}</p>}
             {isGameOver && (
-                <p className="result">
+                <p className="result text-black">
                     {userPoints >= 10 ? "You win the game!" : "You lose the game!"}
                 </p>
             )}
