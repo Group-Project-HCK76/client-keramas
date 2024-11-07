@@ -20,11 +20,10 @@ export default function BattleRoom() {
 
     useEffect(() => {
         if (card) {
-            socket.connect(); // Ensure socket is connected when entering the room
+            socket.connect(); 
             socket.emit("joinGame", card.name);
         }
 
-        // Show waiting alert when server emits 'waiting'
         socket.on("waiting", () => {
             Swal.fire({
                 title: "Waiting for opponent...",
@@ -88,8 +87,8 @@ export default function BattleRoom() {
                 icon: "info",
                 confirmButtonText: "OK",
             }).then(() => {
-                socket.disconnect();  // Disconnect the socket
-                navigate("/pickCard");  // Redirect to /pickCard
+                socket.disconnect();  
+                navigate("/");  // welcome page
             });
         });
 
@@ -108,7 +107,6 @@ export default function BattleRoom() {
         });
 
         return () => {
-            // Ensure socket disconnects when component unmounts
             socket.disconnect();
             socket.off("waiting");
             socket.off("welcomingUser");
@@ -149,40 +147,43 @@ export default function BattleRoom() {
     };
 
     return (
-        <div style={battleRoomStyle}>
-            <h2 className="text-2xl text-black font-bold">Battle Room</h2>
-            {card && (
-                <div className="card-info text-black">
-                    <img src={card.images?.small} alt={card.name} />
-                    <h3>{card.name}</h3>
+        <div style={battleRoomStyle} className="bg-center bg-no-repeat h-screen w-screen bg-gray-700 bg-blend-multiply">
+            <div className="bg-white rounded p-8 max-w-md mx-auto text-center">
+                <h2 className="text-2xl text-black font-bold mb-4">Battle Room</h2>
+                {card && (
+                    <div className="card-info text-black mb-4">
+                        <img src={card.images?.small} alt={card.name} className="mx-auto" />
+                        <h3 className="text-xl font-semibold mt-2">{card.name}</h3>
+                    </div>
+                )}
+                <div className="score-status text-black mb-4 font-semibold">
+                    <p>Your Points: {userPoints}</p>
+                    <p>Opponent Points: {opponentPoints}</p>
                 </div>
-            )}
-            <div className="score-status text-black">
-                <p>Your Points: {userPoints}</p>
-                <p>Opponent Points: {opponentPoints}</p>
+                {isGameStarted ? (
+                    <div className="actions flex justify-center gap-4 mb-4">
+                        {choices.map((choice) => (
+                            <button
+                                key={choice}
+                                onClick={() => handleRPSChoice(choice)}
+                                className="rps-button text-white px-4 py-2 bg-black rounded"
+                            >
+                                {choice.charAt(0).toUpperCase() + choice.slice(1)}
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-black mb-4">Waiting for opponent to join...</p>
+                )}
+                <p className="text-black mb-4">Your Choice: {userChoice}</p>
+                {message && <p className="message text-black mb-4">{message}</p>}
+                {isGameOver && (
+                    <p className="result text-black font-bold">
+                        {userPoints >= 10 ? "You win the game!" : "You lose the game!"}
+                    </p>
+                )}
             </div>
-            {isGameStarted ? (
-                <div className="actions">
-                    {choices.map((choice) => (
-                        <button
-                            key={choice}
-                            onClick={() => handleRPSChoice(choice)}
-                            className="rps-button text-white"
-                        >
-                            {choice.charAt(0).toUpperCase() + choice.slice(1)}
-                        </button>
-                    ))}
-                </div>
-            ) : (
-                <p className="text-black">Waiting for opponent to join...</p>
-            )}
-            <p className="text-black">Your Choice: {userChoice}</p>
-            {message && <p className="message text-black">{message}</p>}
-            {isGameOver && (
-                <p className="result text-black">
-                    {userPoints >= 10 ? "You win the game!" : "You lose the game!"}
-                </p>
-            )}
         </div>
+
     );
 }

@@ -22,8 +22,8 @@ export default function GetCard() {
             cancelButtonText: 'Batal'
         }).then((result) => {
             if (result.isConfirmed) {
-                socket.connect();  // Reconnect the socket
-                navigate('/battle-room', { state: { card } });  // Navigate to battle room
+                socket.connect();  
+                navigate('/battle-room', { state: { card } });  
             }
         });
     };
