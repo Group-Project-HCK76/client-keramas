@@ -1,29 +1,36 @@
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Link } from 'react-router-dom';
+// GetCard.js
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
+import { useCardContext } from '../contexts/CardContext';
+import socket from '../socket';
 
 export default function GetCard() {
-    const [cards, setCards] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
+    const { cards, loading, error } = useCardContext();
+    const navigate = useNavigate();
 
-    useEffect(() => {
-        const fetchCards = async () => {
-            try {
-                const response = await axios.get('https://api.pokemontcg.io/v2/cards');
-                setCards(response.data.data); // assuming response.data.data contains the card array
-                setLoading(false);
-            } catch (err) {
-                setError(err);
-                setLoading(false);
+    const handleCardClick = (card) => {
+        Swal.fire({
+            title: "Konfirmasi Pilihan Kartu",
+            text: `Apakah Anda ingin memilih kartu ${card.name}?`,
+            imageUrl: card.images?.small,
+            imageWidth: 200,
+            imageHeight: 280,
+            imageAlt: card.name,
+            showCancelButton: true,
+            confirmButtonText: 'Ya, Pilih Kartu',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                socket.connect();  // Reconnect the socket
+                navigate('/battle-room', { state: { card } });  // Navigate to battle room
             }
-        };
-
-        fetchCards();
-    }, []);
+        });
+    };
+    
 
     if (loading) {
-        return <p>Loading...</p>;
+        return null; 
     }
 
     if (error) {
@@ -42,15 +49,14 @@ export default function GetCard() {
                     </p>
                 </header>
                 <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-                    {cards.slice(0, 10).map((card) => (
+                    {cards.slice(0, 20).map((card) => (
                         <li key={card.id}>
-                            <Link 
-                                to="/battle-room" 
-                                state={{ card }} // Pass the selected card to BattleRoom
-                                className="group block overflow-hidden"
+                            <div
+                                onClick={() => handleCardClick(card)}
+                                className="group block overflow-hidden cursor-pointer"
                             >
                                 <img
-                                    src={card.images?.small} // Adjust the image source as needed
+                                    src={card.images?.small}
                                     alt={card.name}
                                     className="h-[350px] w-full object-cover transition duration-500 group-hover:scale-105 sm:h-[450px]"
                                 />
@@ -59,7 +65,7 @@ export default function GetCard() {
                                         {card.name}
                                     </h3>
                                 </div>
-                            </Link>
+                            </div>
                         </li>
                     ))}
                 </ul>
